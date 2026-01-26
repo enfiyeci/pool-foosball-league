@@ -124,23 +124,34 @@ function initializeFirebase() {
     onValue(ref(database, 'playerData'), (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            // Merge Firebase data with local player list to ensure all players exist
+            // Merge Firebase data with local player list to ensure all players and fields exist
             PLAYERS.forEach(player => {
                 if (!data[player]) {
                     data[player] = {};
-                    Object.keys(GAME_MODES).forEach(mode => {
+                }
+                // Ensure all game modes exist for each player
+                Object.keys(GAME_MODES).forEach(mode => {
+                    if (!data[player][mode]) {
                         data[player][mode] = {
                             elo: INITIAL_ELO,
                             wins: 0,
                             losses: 0,
                             history: []
                         };
-                    });
-                }
+                    } else {
+                        // Ensure all required fields exist (Firebase may not have history array)
+                        if (data[player][mode].elo === undefined) data[player][mode].elo = INITIAL_ELO;
+                        if (data[player][mode].wins === undefined) data[player][mode].wins = 0;
+                        if (data[player][mode].losses === undefined) data[player][mode].losses = 0;
+                        if (!Array.isArray(data[player][mode].history)) data[player][mode].history = [];
+                    }
+                });
             });
             playerData = data;
+            console.log('Player data loaded from Firebase and normalized');
         } else {
             // Initialize with default data if empty
+            console.log('No player data in Firebase, initializing defaults');
             initializeDefaultPlayerData();
             savePlayerDataToFirebase();
         }
