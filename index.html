@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pool & Foosball League</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">🎱 Pool & Foosball League ⚽</div>
+        <div class="nav-links">
+            <a href="#" class="nav-link active" data-page="home">Home</a>
+            <a href="#" class="nav-link" data-page="submit">Submit Match</a>
+            <a href="#" class="nav-link" data-page="rankings">Rankings</a>
+            <a href="#" class="nav-link" data-page="history">Match History</a>
+            <a href="#" class="nav-link" data-page="players">Players</a>
+            <a href="#" class="nav-link" data-page="elo-info">How ELO Works</a>
+        </div>
+        <div class="nav-hamburger" id="hamburger">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    </nav>
+
+    <div class="mobile-menu" id="mobileMenu">
+        <a href="#" class="nav-link active" data-page="home">Home</a>
+        <a href="#" class="nav-link" data-page="submit">Submit Match</a>
+        <a href="#" class="nav-link" data-page="rankings">Rankings</a>
+        <a href="#" class="nav-link" data-page="history">Match History</a>
+        <a href="#" class="nav-link" data-page="players">Players</a>
+        <a href="#" class="nav-link" data-page="elo-info">How ELO Works</a>
+    </div>
+
+    <main class="container">
+        <!-- Home Page -->
+        <section id="page-home" class="page active">
+            <div class="hero">
+                <h1>Welcome to the League!</h1>
+                <p>Track your pool and foosball matches with friends</p>
+            </div>
+
+            <div class="stats-overview">
+                <div class="stat-card">
+                    <h3>Total Matches</h3>
+                    <p id="total-matches">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Active Players</h3>
+                    <p id="active-players">23</p>
+                </div>
+                <div class="stat-card">
+                    <h3>This Week</h3>
+                    <p id="weekly-matches">0</p>
+                </div>
+            </div>
+
+            <div class="recent-section">
+                <h2>Recent Matches</h2>
+                <div id="recent-matches" class="matches-list">
+                    <p class="no-data">No matches yet. Be the first to submit one!</p>
+                </div>
+            </div>
+
+            <div class="top-players-section">
+                <h2>Top Players by Game Mode</h2>
+                <div class="top-players-grid">
+                    <div class="top-player-card">
+                        <h3>🎱 1v1 Pool</h3>
+                        <div id="top-pool-1v1" class="top-list"></div>
+                    </div>
+                    <div class="top-player-card">
+                        <h3>⚽ 1v1 Foosball</h3>
+                        <div id="top-foosball-1v1" class="top-list"></div>
+                    </div>
+                    <div class="top-player-card">
+                        <h3>🎱 2v2 Pool</h3>
+                        <div id="top-pool-2v2" class="top-list"></div>
+                    </div>
+                    <div class="top-player-card">
+                        <h3>⚽ 2v2 Foosball</h3>
+                        <div id="top-foosball-2v2" class="top-list"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Submit Match Page -->
+        <section id="page-submit" class="page">
+            <h1>Submit Match Result</h1>
+
+            <form id="match-form" class="match-form">
+                <div class="form-group">
+                    <label for="game-mode">Game Mode</label>
+                    <select id="game-mode" required>
+                        <option value="">Select game mode...</option>
+                        <option value="pool-1v1">🎱 1v1 Pool</option>
+                        <option value="foosball-1v1">⚽ 1v1 Foosball</option>
+                        <option value="pool-2v2">🎱 2v2 Pool</option>
+                        <option value="foosball-2v2">⚽ 2v2 Foosball</option>
+                    </select>
+                </div>
+
+                <!-- 1v1 Fields -->
+                <div id="fields-1v1" class="form-fields hidden">
+                    <div class="form-group">
+                        <label for="winner-1v1">Winner</label>
+                        <select id="winner-1v1">
+                            <option value="">Select winner...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="loser-1v1">Loser</label>
+                        <select id="loser-1v1">
+                            <option value="">Select loser...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 2v2 Fields -->
+                <div id="fields-2v2" class="form-fields hidden">
+                    <div class="team-section">
+                        <h3>🏆 Winning Team</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="winner1-2v2">Player 1</label>
+                                <select id="winner1-2v2">
+                                    <option value="">Select player...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="winner2-2v2">Player 2</label>
+                                <select id="winner2-2v2">
+                                    <option value="">Select player...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="team-section losing">
+                        <h3>Losing Team</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="loser1-2v2">Player 1</label>
+                                <select id="loser1-2v2">
+                                    <option value="">Select player...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="loser2-2v2">Player 2</label>
+                                <select id="loser2-2v2">
+                                    <option value="">Select player...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="elo-preview" class="elo-preview hidden">
+                    <h3>ELO Change Preview</h3>
+                    <div id="elo-preview-content"></div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="submit-btn" disabled>Submit Match</button>
+            </form>
+        </section>
+
+        <!-- Rankings Page -->
+        <section id="page-rankings" class="page">
+            <h1>Rankings</h1>
+
+            <div class="tabs">
+                <button class="tab active" data-mode="pool-1v1">🎱 1v1 Pool</button>
+                <button class="tab" data-mode="foosball-1v1">⚽ 1v1 Foosball</button>
+                <button class="tab" data-mode="pool-2v2">🎱 2v2 Pool</button>
+                <button class="tab" data-mode="foosball-2v2">⚽ 2v2 Foosball</button>
+            </div>
+
+            <div class="rankings-table-container">
+                <table class="rankings-table" id="rankings-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th class="sortable" data-sort="name">Player</th>
+                            <th class="sortable active" data-sort="elo">ELO</th>
+                            <th class="sortable" data-sort="wins">Wins</th>
+                            <th class="sortable" data-sort="losses">Losses</th>
+                            <th class="sortable" data-sort="winrate">Win Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rankings-body">
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Match History Page -->
+        <section id="page-history" class="page">
+            <h1>Match History</h1>
+
+            <div class="filters">
+                <div class="filter-group">
+                    <label for="filter-player">Player</label>
+                    <select id="filter-player">
+                        <option value="">All Players</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filter-mode">Game Mode</label>
+                    <select id="filter-mode">
+                        <option value="">All Modes</option>
+                        <option value="pool-1v1">🎱 1v1 Pool</option>
+                        <option value="foosball-1v1">⚽ 1v1 Foosball</option>
+                        <option value="pool-2v2">🎱 2v2 Pool</option>
+                        <option value="foosball-2v2">⚽ 2v2 Foosball</option>
+                    </select>
+                </div>
+                <button class="btn btn-secondary" id="clear-filters">Clear Filters</button>
+            </div>
+
+            <div id="history-list" class="history-list">
+                <p class="no-data">No matches recorded yet.</p>
+            </div>
+        </section>
+
+        <!-- Players Page -->
+        <section id="page-players" class="page">
+            <h1>Players</h1>
+
+            <div class="players-grid" id="players-grid">
+            </div>
+        </section>
+
+        <!-- ELO Info Page -->
+        <section id="page-elo-info" class="page">
+            <h1>How the ELO Rating System Works</h1>
+
+            <div class="elo-info-content">
+                <div class="info-section">
+                    <h2>What is ELO?</h2>
+                    <p>The ELO rating system is a method for calculating the relative skill levels of players. Originally developed by Arpad Elo for chess, it's now used in many competitive games and sports worldwide.</p>
+                    <p>In our league, every player starts with a rating of <strong>1200</strong>. As you play matches, your rating will increase when you win and decrease when you lose.</p>
+                </div>
+
+                <div class="info-section">
+                    <h2>How Ratings Change</h2>
+                    <p>The amount your rating changes after a match depends on two factors:</p>
+                    <ul>
+                        <li><strong>The K-factor:</strong> This determines the maximum possible change per game. We use K=32, which allows for meaningful rating changes while maintaining stability.</li>
+                        <li><strong>Expected outcome:</strong> Based on the rating difference between players, the system calculates how likely each player is to win.</li>
+                    </ul>
+                </div>
+
+                <div class="info-section formula-section">
+                    <h2>The Math Behind It</h2>
+
+                    <div class="formula-box">
+                        <h3>Step 1: Calculate Expected Score</h3>
+                        <p>The expected score for Player A against Player B:</p>
+                        <code>E_A = 1 / (1 + 10^((R_B - R_A) / 400))</code>
+                        <p class="formula-note">Where R_A and R_B are the current ratings of players A and B</p>
+                    </div>
+
+                    <div class="formula-box">
+                        <h3>Step 2: Calculate New Rating</h3>
+                        <p>After the match, the new rating is:</p>
+                        <code>R'_A = R_A + K × (S_A - E_A)</code>
+                        <p class="formula-note">Where S_A is the actual score (1 for win, 0 for loss) and K=32</p>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h2>Example Scenarios</h2>
+
+                    <div class="example-box">
+                        <h3>Scenario 1: Equal Players</h3>
+                        <p>Two players both rated 1200 play a match.</p>
+                        <ul>
+                            <li>Expected score for each: 50%</li>
+                            <li>Winner gains: +16 points (new rating: 1216)</li>
+                            <li>Loser loses: -16 points (new rating: 1184)</li>
+                        </ul>
+                    </div>
+
+                    <div class="example-box">
+                        <h3>Scenario 2: Upset Victory</h3>
+                        <p>A 1100-rated player beats a 1400-rated player.</p>
+                        <ul>
+                            <li>Underdog's expected score: ~15%</li>
+                            <li>Underdog gains: +27 points (new rating: 1127)</li>
+                            <li>Favorite loses: -27 points (new rating: 1373)</li>
+                        </ul>
+                        <p class="example-note">Upsets result in bigger rating changes!</p>
+                    </div>
+
+                    <div class="example-box">
+                        <h3>Scenario 3: Expected Victory</h3>
+                        <p>A 1400-rated player beats a 1100-rated player.</p>
+                        <ul>
+                            <li>Favorite's expected score: ~85%</li>
+                            <li>Favorite gains: +5 points (new rating: 1405)</li>
+                            <li>Underdog loses: -5 points (new rating: 1095)</li>
+                        </ul>
+                        <p class="example-note">Winning against weaker opponents gives fewer points.</p>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h2>2v2 Team Matches</h2>
+                    <p>For doubles matches, we calculate team ratings as the average of both teammates' individual ratings:</p>
+                    <div class="formula-box">
+                        <code>Team Rating = (Player 1 Rating + Player 2 Rating) / 2</code>
+                    </div>
+                    <p>After the match, both teammates receive the same ELO change based on the team result. This means:</p>
+                    <ul>
+                        <li>Teaming up with a lower-rated player gives you a lower team rating</li>
+                        <li>Beating a team with a higher average rating rewards more points</li>
+                        <li>Both teammates share equally in victory and defeat</li>
+                    </ul>
+                </div>
+
+                <div class="info-section">
+                    <h2>Rating Tiers</h2>
+                    <div class="tiers-grid">
+                        <div class="tier tier-bronze">
+                            <span class="tier-icon">🥉</span>
+                            <span class="tier-name">Bronze</span>
+                            <span class="tier-range">Below 1100</span>
+                        </div>
+                        <div class="tier tier-silver">
+                            <span class="tier-icon">🥈</span>
+                            <span class="tier-name">Silver</span>
+                            <span class="tier-range">1100 - 1299</span>
+                        </div>
+                        <div class="tier tier-gold">
+                            <span class="tier-icon">🥇</span>
+                            <span class="tier-name">Gold</span>
+                            <span class="tier-range">1300 - 1499</span>
+                        </div>
+                        <div class="tier tier-platinum">
+                            <span class="tier-icon">💎</span>
+                            <span class="tier-name">Platinum</span>
+                            <span class="tier-range">1500 - 1699</span>
+                        </div>
+                        <div class="tier tier-diamond">
+                            <span class="tier-icon">👑</span>
+                            <span class="tier-name">Diamond</span>
+                            <span class="tier-range">1700+</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h2>Tips for Climbing</h2>
+                    <ul class="tips-list">
+                        <li><strong>Play consistently:</strong> Regular matches help stabilize your true rating.</li>
+                        <li><strong>Challenge stronger players:</strong> You have more to gain and less to lose.</li>
+                        <li><strong>Learn from losses:</strong> Even when you lose points, you gain experience.</li>
+                        <li><strong>Team wisely in 2v2:</strong> Your partner's rating affects your potential gains.</li>
+                    </ul>
+                </div>
+
+                <div class="info-section">
+                    <h2>ELO Calculator</h2>
+                    <p>Try out different scenarios:</p>
+                    <div class="calculator">
+                        <div class="calc-inputs">
+                            <div class="calc-group">
+                                <label for="calc-rating-a">Your Rating</label>
+                                <input type="number" id="calc-rating-a" value="1200" min="100" max="3000">
+                            </div>
+                            <div class="calc-group">
+                                <label for="calc-rating-b">Opponent Rating</label>
+                                <input type="number" id="calc-rating-b" value="1200" min="100" max="3000">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="calc-btn">Calculate</button>
+                        <div class="calc-results" id="calc-results">
+                            <div class="calc-result">
+                                <span>Your win probability:</span>
+                                <strong id="calc-prob">50%</strong>
+                            </div>
+                            <div class="calc-result win">
+                                <span>If you win:</span>
+                                <strong id="calc-win">+16</strong>
+                            </div>
+                            <div class="calc-result lose">
+                                <span>If you lose:</span>
+                                <strong id="calc-lose">-16</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>Pool & Foosball League Tracker | Made with ❤️ for friendly competition</p>
+    </footer>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
