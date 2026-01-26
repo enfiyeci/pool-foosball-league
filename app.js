@@ -61,6 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeFilters();
     initializeCalculator();
 
+    // Initialize with default data first so UI isn't empty
+    initializeDefaultPlayerData();
+    updateAllViews();
+
     // Wait for Firebase to be ready
     if (window.firebaseDB) {
         initializeFirebase();
@@ -77,6 +81,20 @@ function initializeFirebase() {
     onValue(ref(database, 'playerData'), (snapshot) => {
         const data = snapshot.val();
         if (data) {
+            // Merge Firebase data with local player list to ensure all players exist
+            PLAYERS.forEach(player => {
+                if (!data[player]) {
+                    data[player] = {};
+                    Object.keys(GAME_MODES).forEach(mode => {
+                        data[player][mode] = {
+                            elo: INITIAL_ELO,
+                            wins: 0,
+                            losses: 0,
+                            history: []
+                        };
+                    });
+                }
+            });
             playerData = data;
         } else {
             // Initialize with default data if empty
@@ -84,16 +102,33 @@ function initializeFirebase() {
             savePlayerDataToFirebase();
         }
         updateAllViews();
+    }, (error) => {
+        console.error('Firebase playerData error:', error);
+        // Fallback to local data on error
+        initializeDefaultPlayerData();
+        updateAllViews();
     });
 
     // Listen for match history changes
     onValue(ref(database, 'matchHistory'), (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            matchHistory = Array.isArray(data) ? data : Object.values(data);
+            // Handle both array and object formats from Firebase
+            if (Array.isArray(data)) {
+                matchHistory = data;
+            } else {
+                // Firebase converts arrays with gaps to objects, so convert back
+                matchHistory = Object.values(data);
+            }
+            // Sort by timestamp descending to ensure proper order
+            matchHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         } else {
             matchHistory = [];
         }
+        updateAllViews();
+    }, (error) => {
+        console.error('Firebase matchHistory error:', error);
+        matchHistory = [];
         updateAllViews();
     });
 }
@@ -114,18 +149,29 @@ function initializeDefaultPlayerData() {
 
 // Data persistence - Firebase
 function savePlayerDataToFirebase() {
-    if (!firebaseReady) return;
+    if (!firebaseReady) {
+        console.warn('Firebase not ready, cannot save player data');
+        return;
+    }
     const { database, ref, set } = window.firebaseDB;
-    set(ref(database, 'playerData'), playerData);
+    set(ref(database, 'playerData'), playerData)
+        .then(() => console.log('Player data saved to Firebase'))
+        .catch(err => console.error('Error saving player data:', err));
 }
 
 function saveMatchHistoryToFirebase() {
-    if (!firebaseReady) return;
+    if (!firebaseReady) {
+        console.warn('Firebase not ready, cannot save match history');
+        return;
+    }
     const { database, ref, set } = window.firebaseDB;
-    set(ref(database, 'matchHistory'), matchHistory);
+    set(ref(database, 'matchHistory'), matchHistory)
+        .then(() => console.log('Match history saved to Firebase'))
+        .catch(err => console.error('Error saving match history:', err));
 }
 
 function saveData() {
+    console.log('Saving data to Firebase...');
     savePlayerDataToFirebase();
     saveMatchHistoryToFirebase();
 }
