@@ -401,6 +401,31 @@
 
     <div id="toast" class="toast hidden"></div>
 
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCAzEpgCp_F6M7tmXn4Llo-FtPyQVUf0Mo",
+            authDomain: "elmo-pool-tourney.firebaseapp.com",
+            databaseURL: "https://elmo-pool-tourney-default-rtdb.firebaseio.com",
+            projectId: "elmo-pool-tourney",
+            storageBucket: "elmo-pool-tourney.firebasestorage.app",
+            messagingSenderId: "502645327724",
+            appId: "1:502645327724:web:073c94fad8585e52b09549",
+            measurementId: "G-Z58QE2HRGY"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        // Make Firebase available globally for app.js
+        window.firebaseDB = { database, ref, set, get, onValue };
+
+        // Signal that Firebase is ready
+        window.dispatchEvent(new Event('firebase-ready'));
+    </script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -51,48 +51,83 @@ const GAME_MODES = {
 // Data storage
 let playerData = {};
 let matchHistory = [];
+let firebaseReady = false;
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
-    loadData();
     initializeNavigation();
     initializeForm();
     initializeRankings();
     initializeFilters();
     initializeCalculator();
-    updateAllViews();
+
+    // Wait for Firebase to be ready
+    if (window.firebaseDB) {
+        initializeFirebase();
+    } else {
+        window.addEventListener('firebase-ready', initializeFirebase);
+    }
 });
 
-// Data persistence
-function loadData() {
-    const savedPlayerData = localStorage.getItem('poolFoosballPlayerData');
-    const savedMatchHistory = localStorage.getItem('poolFoosballMatchHistory');
+function initializeFirebase() {
+    firebaseReady = true;
+    const { database, ref, onValue } = window.firebaseDB;
 
-    if (savedPlayerData) {
-        playerData = JSON.parse(savedPlayerData);
-    } else {
-        // Initialize all players with default stats for each mode
-        PLAYERS.forEach(player => {
-            playerData[player] = {};
-            Object.keys(GAME_MODES).forEach(mode => {
-                playerData[player][mode] = {
-                    elo: INITIAL_ELO,
-                    wins: 0,
-                    losses: 0,
-                    history: []
-                };
-            });
+    // Listen for player data changes
+    onValue(ref(database, 'playerData'), (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            playerData = data;
+        } else {
+            // Initialize with default data if empty
+            initializeDefaultPlayerData();
+            savePlayerDataToFirebase();
+        }
+        updateAllViews();
+    });
+
+    // Listen for match history changes
+    onValue(ref(database, 'matchHistory'), (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            matchHistory = Array.isArray(data) ? data : Object.values(data);
+        } else {
+            matchHistory = [];
+        }
+        updateAllViews();
+    });
+}
+
+function initializeDefaultPlayerData() {
+    PLAYERS.forEach(player => {
+        playerData[player] = {};
+        Object.keys(GAME_MODES).forEach(mode => {
+            playerData[player][mode] = {
+                elo: INITIAL_ELO,
+                wins: 0,
+                losses: 0,
+                history: []
+            };
         });
-    }
+    });
+}
 
-    if (savedMatchHistory) {
-        matchHistory = JSON.parse(savedMatchHistory);
-    }
+// Data persistence - Firebase
+function savePlayerDataToFirebase() {
+    if (!firebaseReady) return;
+    const { database, ref, set } = window.firebaseDB;
+    set(ref(database, 'playerData'), playerData);
+}
+
+function saveMatchHistoryToFirebase() {
+    if (!firebaseReady) return;
+    const { database, ref, set } = window.firebaseDB;
+    set(ref(database, 'matchHistory'), matchHistory);
 }
 
 function saveData() {
-    localStorage.setItem('poolFoosballPlayerData', JSON.stringify(playerData));
-    localStorage.setItem('poolFoosballMatchHistory', JSON.stringify(matchHistory));
+    savePlayerDataToFirebase();
+    saveMatchHistoryToFirebase();
 }
 
 // Navigation
