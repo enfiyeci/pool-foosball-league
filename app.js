@@ -22,7 +22,18 @@ const PLAYERS = [
     "Moussa Dibassy",
     "Truth Woods",
     "Zachary Kirchhoff",
-    "Arda Enfiyeci"
+    "Arda Enfiyeci",
+    "Juliana Li",
+    "Jonathan Schwarz",
+    "Drew Neiman",
+    "Brittany Brown",
+    "Achille Giaretta",
+    "Sana Dezhabad",
+    "Hannah Gong",
+    "Lynn Yi",
+    "Cheeks",
+    "Tom Huang",
+    "Rosemary Soule"
 ].sort();
 
 // Constants
