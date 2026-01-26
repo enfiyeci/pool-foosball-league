@@ -55,6 +55,7 @@ let firebaseReady = false;
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOMContentLoaded fired');
     initializeNavigation();
     initializeForm();
     initializeRankings();
@@ -65,15 +66,57 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeDefaultPlayerData();
     updateAllViews();
 
-    // Wait for Firebase to be ready
-    if (window.firebaseDB) {
-        initializeFirebase();
-    } else {
-        window.addEventListener('firebase-ready', initializeFirebase);
-    }
+    // Wait for Firebase to be ready - check multiple ways due to module timing
+    tryInitializeFirebase();
 });
 
+function tryInitializeFirebase() {
+    console.log('tryInitializeFirebase called, window.firebaseDB:', !!window.firebaseDB, 'firebaseReady:', firebaseReady);
+
+    if (firebaseReady) {
+        console.log('Firebase already initialized');
+        return;
+    }
+
+    if (window.firebaseDB) {
+        console.log('window.firebaseDB exists, initializing Firebase');
+        initializeFirebase();
+    } else if (window.firebaseDBReady) {
+        // Module has loaded but firebaseDB might not be set yet - wait a tick
+        console.log('firebaseDBReady flag set but firebaseDB not found, waiting...');
+        setTimeout(tryInitializeFirebase, 100);
+    } else {
+        console.log('Firebase not ready, adding event listener');
+        window.addEventListener('firebase-ready', () => {
+            console.log('firebase-ready event received');
+            tryInitializeFirebase();
+        });
+
+        // Also poll as a fallback in case event was missed
+        setTimeout(() => {
+            if (!firebaseReady && window.firebaseDB) {
+                console.log('Fallback: Firebase detected via polling');
+                initializeFirebase();
+            }
+        }, 1000);
+    }
+}
+
+// Expose for direct calling from module
+window.initializeFirebase = initializeFirebase;
+
 function initializeFirebase() {
+    if (firebaseReady) {
+        console.log('initializeFirebase called but already ready, skipping');
+        return;
+    }
+
+    if (!window.firebaseDB) {
+        console.error('initializeFirebase called but window.firebaseDB is not set!');
+        return;
+    }
+
+    console.log('initializeFirebase: Setting up Firebase listeners');
     firebaseReady = true;
     const { database, ref, onValue } = window.firebaseDB;
 
@@ -472,7 +515,17 @@ function submitMatch() {
     }
 
     matchHistory.unshift(matchData);
-    saveData();
+
+    console.log('Match submitted:', matchData);
+    console.log('firebaseReady:', firebaseReady);
+
+    if (!firebaseReady) {
+        console.warn('Firebase not ready when submitting match!');
+        showToast('Warning: Match saved locally but may not sync. Please refresh and try again.', 'error');
+    } else {
+        saveData();
+        showToast('Match recorded successfully!', 'success');
+    }
 
     // Reset form
     document.getElementById('match-form').reset();
@@ -481,7 +534,6 @@ function submitMatch() {
     document.getElementById('elo-preview').classList.add('hidden');
     document.getElementById('submit-btn').disabled = true;
 
-    showToast('Match recorded successfully!', 'success');
     updateAllViews();
 }
 

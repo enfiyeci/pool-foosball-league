@@ -423,8 +423,17 @@
         // Make Firebase available globally for app.js
         window.firebaseDB = { database, ref, set, get, onValue };
 
-        // Signal that Firebase is ready
+        console.log('Firebase module loaded, window.firebaseDB set');
+
+        // Signal that Firebase is ready - use a custom event that can be caught even if listener is added later
+        window.firebaseDBReady = true;
         window.dispatchEvent(new Event('firebase-ready'));
+
+        // Also try to initialize directly if app.js has already loaded
+        if (typeof window.initializeFirebase === 'function') {
+            console.log('Calling initializeFirebase directly from module');
+            window.initializeFirebase();
+        }
     </script>
     <script src="app.js"></script>
 </body>
