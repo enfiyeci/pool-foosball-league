@@ -51,6 +51,8 @@ const GAME_MODES = {
 // Data storage
 let playerData = {};
 let matchHistory = [];
+let pendingMatches = [];
+let playerPins = {};
 let firebaseReady = false;
 
 // Initialize app
@@ -163,6 +165,36 @@ function initializeFirebase() {
         updateAllViews();
     });
 
+    // Listen for pending matches
+    onValue(ref(database, 'pendingMatches'), (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            pendingMatches = Object.values(data).filter(m => {
+                // Filter out expired matches (24h)
+                return m.expiresAt && new Date(m.expiresAt) > new Date();
+            });
+            pendingMatches.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        } else {
+            pendingMatches = [];
+        }
+        updatePendingBadge();
+        if (document.getElementById('page-pending')?.classList.contains('active')) {
+            updatePendingMatchesUI();
+        }
+    }, (error) => {
+        console.error('Firebase pendingMatches error:', error);
+        pendingMatches = [];
+    });
+
+    // Listen for player PINs
+    onValue(ref(database, 'playerPins'), (snapshot) => {
+        const data = snapshot.val();
+        playerPins = data || {};
+    }, (error) => {
+        console.error('Firebase playerPins error:', error);
+        playerPins = {};
+    });
+
     // Listen for match history changes
     onValue(ref(database, 'matchHistory'), (snapshot) => {
         const data = snapshot.val();
@@ -257,6 +289,7 @@ function initializeNavigation() {
             if (page === 'history') updateHistoryList();
             if (page === 'players') updatePlayersGrid();
             if (page === 'home') updateHomeStats();
+            if (page === 'pending') updatePendingMatchesUI();
         });
     });
 
@@ -437,10 +470,12 @@ function calculateEloChange(winnerElo, loserElo) {
     return { winnerChange, loserChange };
 }
 
-// Match submission
+// Match submission - now creates a pending match
 function submitMatch() {
     const mode = document.getElementById('game-mode').value;
     const timestamp = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const matchId = String(Date.now());
 
     let matchData;
 
@@ -448,11 +483,75 @@ function submitMatch() {
         const winner = document.getElementById('winner-1v1').value;
         const loser = document.getElementById('loser-1v1').value;
 
+        matchData = {
+            id: matchId,
+            mode,
+            type: '1v1',
+            timestamp,
+            expiresAt,
+            status: 'pending',
+            winners: [winner],
+            losers: [loser]
+        };
+    } else {
+        const winner1 = document.getElementById('winner1-2v2').value;
+        const winner2 = document.getElementById('winner2-2v2').value;
+        const loser1 = document.getElementById('loser1-2v2').value;
+        const loser2 = document.getElementById('loser2-2v2').value;
+
+        matchData = {
+            id: matchId,
+            mode,
+            type: '2v2',
+            timestamp,
+            expiresAt,
+            status: 'pending',
+            winners: [winner1, winner2],
+            losers: [loser1, loser2]
+        };
+    }
+
+    console.log('Submitting pending match:', matchData);
+
+    if (!firebaseReady) {
+        console.warn('Firebase not ready when submitting match!');
+        showToast('Firebase not ready. Please refresh and try again.', 'error');
+        return;
+    }
+
+    const { database, ref, set } = window.firebaseDB;
+    set(ref(database, 'pendingMatches/' + matchId), matchData)
+        .then(() => {
+            console.log('Pending match saved to Firebase');
+            showToast('Match submitted! Waiting for loser to confirm.', 'success');
+        })
+        .catch(err => {
+            console.error('Error saving pending match:', err);
+            showToast('Error submitting match. Try again.', 'error');
+        });
+
+    // Reset form
+    document.getElementById('match-form').reset();
+    document.getElementById('fields-1v1').classList.add('hidden');
+    document.getElementById('fields-2v2').classList.add('hidden');
+    document.getElementById('elo-preview').classList.add('hidden');
+    document.getElementById('submit-btn').disabled = true;
+}
+
+// Apply ELO changes for a confirmed match
+function applyMatchElo(match) {
+    const mode = match.mode;
+    const timestamp = match.timestamp;
+
+    let eloChanges;
+
+    if (match.type === '1v1') {
+        const winner = match.winners[0];
+        const loser = match.losers[0];
         const winnerElo = playerData[winner][mode].elo;
         const loserElo = playerData[loser][mode].elo;
         const { winnerChange, loserChange } = calculateEloChange(winnerElo, loserElo);
 
-        // Update player data
         playerData[winner][mode].elo += winnerChange;
         playerData[winner][mode].wins++;
         playerData[winner][mode].history.push({ date: timestamp, change: winnerChange, opponent: loser, result: 'win' });
@@ -461,91 +560,237 @@ function submitMatch() {
         playerData[loser][mode].losses++;
         playerData[loser][mode].history.push({ date: timestamp, change: loserChange, opponent: winner, result: 'loss' });
 
-        matchData = {
-            id: Date.now(),
-            mode,
-            type: '1v1',
-            timestamp,
-            winners: [winner],
-            losers: [loser],
-            eloChanges: {
-                [winner]: winnerChange,
-                [loser]: loserChange
-            }
-        };
+        eloChanges = { [winner]: winnerChange, [loser]: loserChange };
     } else {
-        const winner1 = document.getElementById('winner1-2v2').value;
-        const winner2 = document.getElementById('winner2-2v2').value;
-        const loser1 = document.getElementById('loser1-2v2').value;
-        const loser2 = document.getElementById('loser2-2v2').value;
-
+        const [winner1, winner2] = match.winners;
+        const [loser1, loser2] = match.losers;
         const teamWinnerElo = (playerData[winner1][mode].elo + playerData[winner2][mode].elo) / 2;
         const teamLoserElo = (playerData[loser1][mode].elo + playerData[loser2][mode].elo) / 2;
         const { winnerChange, loserChange } = calculateEloChange(teamWinnerElo, teamLoserElo);
 
-        // Update winners
         [winner1, winner2].forEach(player => {
             playerData[player][mode].elo += winnerChange;
             playerData[player][mode].wins++;
             playerData[player][mode].history.push({
-                date: timestamp,
-                change: winnerChange,
+                date: timestamp, change: winnerChange,
                 teammate: player === winner1 ? winner2 : winner1,
-                opponents: [loser1, loser2],
-                result: 'win'
+                opponents: [loser1, loser2], result: 'win'
             });
         });
 
-        // Update losers
         [loser1, loser2].forEach(player => {
             playerData[player][mode].elo += loserChange;
             playerData[player][mode].losses++;
             playerData[player][mode].history.push({
-                date: timestamp,
-                change: loserChange,
+                date: timestamp, change: loserChange,
                 teammate: player === loser1 ? loser2 : loser1,
-                opponents: [winner1, winner2],
-                result: 'loss'
+                opponents: [winner1, winner2], result: 'loss'
             });
         });
 
-        matchData = {
-            id: Date.now(),
-            mode,
-            type: '2v2',
-            timestamp,
-            winners: [winner1, winner2],
-            losers: [loser1, loser2],
-            eloChanges: {
-                [winner1]: winnerChange,
-                [winner2]: winnerChange,
-                [loser1]: loserChange,
-                [loser2]: loserChange
-            }
-        };
+        eloChanges = { [winner1]: winnerChange, [winner2]: winnerChange, [loser1]: loserChange, [loser2]: loserChange };
     }
 
-    matchHistory.unshift(matchData);
+    return eloChanges;
+}
 
-    console.log('Match submitted:', matchData);
-    console.log('firebaseReady:', firebaseReady);
+// Confirm a pending match (loser enters PIN)
+function confirmMatch(matchId, pin) {
+    const match = pendingMatches.find(m => m.id === matchId);
+    if (!match) {
+        showToast('Match not found or expired.', 'error');
+        return;
+    }
 
-    if (!firebaseReady) {
-        console.warn('Firebase not ready when submitting match!');
-        showToast('Warning: Match saved locally but may not sync. Please refresh and try again.', 'error');
+    // Verify PIN against any loser
+    const validLoser = match.losers.find(loser => playerPins[loser] && playerPins[loser] === pin);
+    if (!validLoser) {
+        showToast('Incorrect PIN. Only a losing player can confirm.', 'error');
+        return;
+    }
+
+    // Apply ELO
+    const eloChanges = applyMatchElo(match);
+
+    // Create confirmed match record
+    const confirmedMatch = {
+        id: parseInt(match.id),
+        mode: match.mode,
+        type: match.type,
+        timestamp: match.timestamp,
+        winners: match.winners,
+        losers: match.losers,
+        eloChanges
+    };
+
+    matchHistory.unshift(confirmedMatch);
+
+    // Save everything and remove from pending
+    const { database, ref, set } = window.firebaseDB;
+    Promise.all([
+        set(ref(database, 'pendingMatches/' + matchId), null),
+        set(ref(database, 'playerData'), playerData),
+        set(ref(database, 'matchHistory'), matchHistory)
+    ]).then(() => {
+        showToast('Match confirmed! ELO updated.', 'success');
+        updateAllViews();
+    }).catch(err => {
+        console.error('Error confirming match:', err);
+        showToast('Error confirming match.', 'error');
+    });
+}
+
+// Reject a pending match (loser enters PIN)
+function rejectMatch(matchId, pin) {
+    const match = pendingMatches.find(m => m.id === matchId);
+    if (!match) {
+        showToast('Match not found or expired.', 'error');
+        return;
+    }
+
+    const validLoser = match.losers.find(loser => playerPins[loser] && playerPins[loser] === pin);
+    if (!validLoser) {
+        showToast('Incorrect PIN. Only a losing player can reject.', 'error');
+        return;
+    }
+
+    const { database, ref, set } = window.firebaseDB;
+    set(ref(database, 'pendingMatches/' + matchId), null)
+        .then(() => {
+            showToast('Match rejected and removed.', 'success');
+        })
+        .catch(err => {
+            console.error('Error rejecting match:', err);
+            showToast('Error rejecting match.', 'error');
+        });
+}
+
+// PIN setup
+function setupPin(playerName, pin) {
+    if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+        showToast('PIN must be exactly 4 digits.', 'error');
+        return;
+    }
+    const { database, ref, set } = window.firebaseDB;
+    set(ref(database, 'playerPins/' + playerName), pin)
+        .then(() => {
+            showToast('PIN set for ' + playerName.split(' ')[0] + '!', 'success');
+            closePinModal();
+        })
+        .catch(err => {
+            console.error('Error saving PIN:', err);
+            showToast('Error saving PIN.', 'error');
+        });
+}
+
+function changePin(playerName, oldPin, newPin) {
+    if (playerPins[playerName] !== oldPin) {
+        showToast('Current PIN is incorrect.', 'error');
+        return;
+    }
+    setupPin(playerName, newPin);
+}
+
+// Pending matches UI
+function updatePendingBadge() {
+    const badge = document.getElementById('pending-badge');
+    const badgeMobile = document.getElementById('pending-badge-mobile');
+    const count = pendingMatches.length;
+    [badge, badgeMobile].forEach(b => {
+        if (b) {
+            b.textContent = count;
+            b.style.display = count > 0 ? 'inline-flex' : 'none';
+        }
+    });
+}
+
+function updatePendingMatchesUI() {
+    const container = document.getElementById('pending-list');
+    if (!container) return;
+
+    if (pendingMatches.length === 0) {
+        container.innerHTML = '<p class="no-data">No pending matches.</p>';
+        return;
+    }
+
+    container.innerHTML = pendingMatches.map(match => {
+        const modeInfo = GAME_MODES[match.mode];
+        const date = new Date(match.timestamp);
+        const timeAgo = getTimeAgo(date);
+        const expiresIn = Math.max(0, Math.round((new Date(match.expiresAt) - new Date()) / (1000 * 60 * 60)));
+
+        let resultText;
+        if (match.type === '1v1') {
+            resultText = `<span class="winner">${match.winners[0]}</span> defeated <span class="loser">${match.losers[0]}</span>`;
+        } else {
+            resultText = `<span class="winner">${match.winners.join(' & ')}</span> defeated <span class="loser">${match.losers.join(' & ')}</span>`;
+        }
+
+        const losersNeedPin = match.losers.filter(l => !playerPins[l]);
+        const noPinWarning = losersNeedPin.length > 0
+            ? `<div class="pending-warning">Missing PIN: ${losersNeedPin.map(l => l.split(' ')[0]).join(', ')} - Set PIN first!</div>`
+            : '';
+
+        return `
+            <div class="pending-item" data-match-id="${match.id}">
+                <div class="pending-main">
+                    <div class="history-mode">${modeInfo.icon} ${modeInfo.name}</div>
+                    <div class="history-result">${resultText}</div>
+                    <div class="pending-meta">${timeAgo} | Expires in ~${expiresIn}h</div>
+                    ${noPinWarning}
+                </div>
+                <div class="pending-actions">
+                    <input type="password" maxlength="4" pattern="\\d{4}" placeholder="PIN" class="pin-input" id="pin-${match.id}">
+                    <button class="btn btn-confirm" onclick="confirmMatch('${match.id}', document.getElementById('pin-${match.id}').value)">Confirm</button>
+                    <button class="btn btn-reject" onclick="rejectMatch('${match.id}', document.getElementById('pin-${match.id}').value)">Reject</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// PIN modal functions
+function openPinModal() {
+    document.getElementById('pin-modal').classList.add('open');
+    // Populate player dropdown
+    const select = document.getElementById('pin-player-select');
+    select.innerHTML = '<option value="">Select player...</option>';
+    PLAYERS.forEach(player => {
+        const hasPin = playerPins[player] ? ' (PIN set)' : '';
+        const option = document.createElement('option');
+        option.value = player;
+        option.textContent = player + hasPin;
+        select.appendChild(option);
+    });
+    // Reset fields
+    document.getElementById('pin-current').value = '';
+    document.getElementById('pin-new').value = '';
+    document.getElementById('pin-current-group').style.display = 'none';
+    select.addEventListener('change', () => {
+        const hasExisting = playerPins[select.value];
+        document.getElementById('pin-current-group').style.display = hasExisting ? 'block' : 'none';
+    });
+}
+
+function closePinModal() {
+    document.getElementById('pin-modal').classList.remove('open');
+}
+
+function savePinFromModal() {
+    const player = document.getElementById('pin-player-select').value;
+    const currentPin = document.getElementById('pin-current').value;
+    const newPin = document.getElementById('pin-new').value;
+
+    if (!player) {
+        showToast('Select a player.', 'error');
+        return;
+    }
+
+    if (playerPins[player]) {
+        changePin(player, currentPin, newPin);
     } else {
-        saveData();
-        showToast('Match recorded successfully!', 'success');
+        setupPin(player, newPin);
     }
-
-    // Reset form
-    document.getElementById('match-form').reset();
-    document.getElementById('fields-1v1').classList.add('hidden');
-    document.getElementById('fields-2v2').classList.add('hidden');
-    document.getElementById('elo-preview').classList.add('hidden');
-    document.getElementById('submit-btn').disabled = true;
-
-    updateAllViews();
 }
 
 // Rankings

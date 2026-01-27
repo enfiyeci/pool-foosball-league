@@ -967,6 +967,139 @@ body {
     border-top: 1px solid var(--border-color);
 }
 
+/* Badge */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--danger-color);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    padding: 0 5px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* Pending Matches */
+.pending-list {
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.pending-item {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.pending-item:last-child {
+    border-bottom: none;
+}
+
+.pending-main {
+    flex: 1;
+    min-width: 200px;
+}
+
+.pending-meta {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.pending-warning {
+    font-size: 0.8rem;
+    color: var(--warning-color);
+    font-weight: 500;
+    margin-top: 0.25rem;
+}
+
+.pending-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.pin-input {
+    width: 70px;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    text-align: center;
+    letter-spacing: 0.2em;
+}
+
+.btn-confirm {
+    background: var(--success-color);
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn-confirm:hover {
+    opacity: 0.85;
+}
+
+.btn-reject {
+    background: var(--danger-color);
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn-reject:hover {
+    opacity: 0.85;
+}
+
+/* Modal */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-overlay.open {
+    display: flex;
+}
+
+.modal-card {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: var(--shadow-lg);
+}
+
+.modal-card h2 {
+    margin-bottom: 1.5rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .navbar {
@@ -1015,6 +1148,15 @@ body {
 
     .history-details {
         text-align: left;
+    }
+
+    .pending-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .pending-actions {
+        width: 100%;
     }
 
     .calc-inputs {
