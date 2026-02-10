@@ -967,6 +967,21 @@ body {
     border-top: 1px solid var(--border-color);
 }
 
+/* Neo vs Brother card */
+.neo-brother-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.neo-brother-card h3 {
+    color: rgba(255,255,255,0.9);
+}
+
+.neo-brother-card p {
+    font-size: 2rem;
+    font-weight: 700;
+}
+
 /* Badge */
 .badge {
     display: inline-flex;

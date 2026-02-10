@@ -1,5 +1,24 @@
-// Player list
-const PLAYERS = [
+// Player list - Neos (new members)
+const NEOS = [
+    "Victoria Amore",
+    "Sebastian Davis",
+    "Nadia Duah",
+    "Joshua Meshechok",
+    "Agnes Batters",
+    "Sarah Gebremeskel",
+    "Jon Spahia",
+    "Joshua Beckwith",
+    "Eliana Goodman",
+    "Chikwendu Okongwu",
+    "Kai Chan-Van Der Helm",
+    "Worth Bergeland",
+    "Mark Doraszelski",
+    "Liam Decker",
+    "Amelie Breuninger"
+];
+
+// Player list - Brothers (existing members)
+const BROTHERS = [
     "Jorge Luis Rodriguez",
     "Isabella Elena Barreira Bekanich",
     "Megha Narayanan Govindu",
@@ -34,7 +53,19 @@ const PLAYERS = [
     "Cheeks",
     "Tom Huang",
     "Rosemary Soule"
-].sort();
+];
+
+// Combined player list
+const PLAYERS = [...NEOS, ...BROTHERS].sort();
+
+// Helper to check if player is Neo or Brother
+function isNeo(playerName) {
+    return NEOS.includes(playerName);
+}
+
+function isBrother(playerName) {
+    return BROTHERS.includes(playerName);
+}
 
 // Constants
 const INITIAL_ELO = 1200;
@@ -53,6 +84,7 @@ let playerData = {};
 let matchHistory = [];
 let pendingMatches = [];
 let playerPins = {};
+let neoBrotherScore = { neo: 0, brother: 0 };
 let firebaseReady = false;
 
 // Initialize app
@@ -163,6 +195,16 @@ function initializeFirebase() {
         // Fallback to local data on error
         initializeDefaultPlayerData();
         updateAllViews();
+    });
+
+    // Listen for Neo vs Brother score
+    onValue(ref(database, 'neoBrotherScore'), (snapshot) => {
+        const data = snapshot.val();
+        neoBrotherScore = data || { neo: 0, brother: 0 };
+        updateNeoBrotherDisplay();
+    }, (error) => {
+        console.error('Firebase neoBrotherScore error:', error);
+        neoBrotherScore = { neo: 0, brother: 0 };
     });
 
     // Listen for pending matches
@@ -544,6 +586,7 @@ function applyMatchElo(match) {
     const timestamp = match.timestamp;
 
     let eloChanges;
+    let neoBrotherUpdate = null;
 
     if (match.type === '1v1') {
         const winner = match.winners[0];
@@ -561,6 +604,9 @@ function applyMatchElo(match) {
         playerData[loser][mode].history.push({ date: timestamp, change: loserChange, opponent: winner, result: 'loss' });
 
         eloChanges = { [winner]: winnerChange, [loser]: loserChange };
+
+        // Track Neo vs Brother (only when a Neo plays a Brother)
+        neoBrotherUpdate = checkNeoBrotherMatch([winner], [loser]);
     } else {
         const [winner1, winner2] = match.winners;
         const [loser1, loser2] = match.losers;
@@ -589,9 +635,36 @@ function applyMatchElo(match) {
         });
 
         eloChanges = { [winner1]: winnerChange, [winner2]: winnerChange, [loser1]: loserChange, [loser2]: loserChange };
+
+        // Track Neo vs Brother (only when Neos play Brothers)
+        neoBrotherUpdate = checkNeoBrotherMatch([winner1, winner2], [loser1, loser2]);
     }
 
-    return eloChanges;
+    return { eloChanges, neoBrotherUpdate };
+}
+
+// Check if match is Neo vs Brother and return who won
+function checkNeoBrotherMatch(winners, losers) {
+    const winnersAreNeos = winners.every(p => isNeo(p));
+    const winnersAreBrothers = winners.every(p => isBrother(p));
+    const losersAreNeos = losers.every(p => isNeo(p));
+    const losersAreBrothers = losers.every(p => isBrother(p));
+
+    // Only count if it's pure Neo team vs pure Brother team
+    if (winnersAreNeos && losersAreBrothers) {
+        return 'neo';
+    } else if (winnersAreBrothers && losersAreNeos) {
+        return 'brother';
+    }
+    return null;
+}
+
+// Update Neo vs Brother display
+function updateNeoBrotherDisplay() {
+    const display = document.getElementById('neo-brother-score');
+    if (display) {
+        display.textContent = `${neoBrotherScore.neo} - ${neoBrotherScore.brother}`;
+    }
 }
 
 // Confirm a pending match (loser enters PIN)
@@ -610,7 +683,14 @@ function confirmMatch(matchId, pin) {
     }
 
     // Apply ELO
-    const eloChanges = applyMatchElo(match);
+    const { eloChanges, neoBrotherUpdate } = applyMatchElo(match);
+
+    // Update Neo vs Brother score if applicable
+    if (neoBrotherUpdate === 'neo') {
+        neoBrotherScore.neo++;
+    } else if (neoBrotherUpdate === 'brother') {
+        neoBrotherScore.brother++;
+    }
 
     // Create confirmed match record
     const confirmedMatch = {
@@ -620,18 +700,23 @@ function confirmMatch(matchId, pin) {
         timestamp: match.timestamp,
         winners: match.winners,
         losers: match.losers,
-        eloChanges
+        eloChanges,
+        neoBrotherResult: neoBrotherUpdate
     };
 
     matchHistory.unshift(confirmedMatch);
 
     // Save everything and remove from pending
     const { database, ref, set } = window.firebaseDB;
-    Promise.all([
+    const savePromises = [
         set(ref(database, 'pendingMatches/' + matchId), null),
         set(ref(database, 'playerData'), playerData),
         set(ref(database, 'matchHistory'), matchHistory)
-    ]).then(() => {
+    ];
+    if (neoBrotherUpdate) {
+        savePromises.push(set(ref(database, 'neoBrotherScore'), neoBrotherScore));
+    }
+    Promise.all(savePromises).then(() => {
         showToast('Match confirmed! ELO updated.', 'success');
         updateAllViews();
     }).catch(err => {
