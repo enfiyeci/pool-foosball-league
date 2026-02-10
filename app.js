@@ -516,7 +516,7 @@ function calculateEloChange(winnerElo, loserElo) {
 function submitMatch() {
     const mode = document.getElementById('game-mode').value;
     const timestamp = new Date().toISOString();
-    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
     const matchId = String(Date.now());
 
     let matchData;
@@ -524,6 +524,11 @@ function submitMatch() {
     if (GAME_MODES[mode].type === '1v1') {
         const winner = document.getElementById('winner-1v1').value;
         const loser = document.getElementById('loser-1v1').value;
+
+        // Calculate ELO changes at submission time
+        const winnerElo = playerData[winner][mode].elo;
+        const loserElo = playerData[loser][mode].elo;
+        const { winnerChange, loserChange } = calculateEloChange(winnerElo, loserElo);
 
         matchData = {
             id: matchId,
@@ -533,13 +538,19 @@ function submitMatch() {
             expiresAt,
             status: 'pending',
             winners: [winner],
-            losers: [loser]
+            losers: [loser],
+            eloChanges: { [winner]: winnerChange, [loser]: loserChange }
         };
     } else {
         const winner1 = document.getElementById('winner1-2v2').value;
         const winner2 = document.getElementById('winner2-2v2').value;
         const loser1 = document.getElementById('loser1-2v2').value;
         const loser2 = document.getElementById('loser2-2v2').value;
+
+        // Calculate ELO changes at submission time
+        const teamWinnerElo = (playerData[winner1][mode].elo + playerData[winner2][mode].elo) / 2;
+        const teamLoserElo = (playerData[loser1][mode].elo + playerData[loser2][mode].elo) / 2;
+        const { winnerChange, loserChange } = calculateEloChange(teamWinnerElo, teamLoserElo);
 
         matchData = {
             id: matchId,
@@ -549,7 +560,8 @@ function submitMatch() {
             expiresAt,
             status: 'pending',
             winners: [winner1, winner2],
-            losers: [loser1, loser2]
+            losers: [loser1, loser2],
+            eloChanges: { [winner1]: winnerChange, [winner2]: winnerChange, [loser1]: loserChange, [loser2]: loserChange }
         };
     }
 
@@ -580,20 +592,18 @@ function submitMatch() {
     document.getElementById('submit-btn').disabled = true;
 }
 
-// Apply ELO changes for a confirmed match
+// Apply ELO changes for a confirmed match (uses pre-calculated ELO from submission time)
 function applyMatchElo(match) {
     const mode = match.mode;
     const timestamp = match.timestamp;
-
-    let eloChanges;
+    const eloChanges = match.eloChanges;
     let neoBrotherUpdate = null;
 
     if (match.type === '1v1') {
         const winner = match.winners[0];
         const loser = match.losers[0];
-        const winnerElo = playerData[winner][mode].elo;
-        const loserElo = playerData[loser][mode].elo;
-        const { winnerChange, loserChange } = calculateEloChange(winnerElo, loserElo);
+        const winnerChange = eloChanges[winner];
+        const loserChange = eloChanges[loser];
 
         playerData[winner][mode].elo += winnerChange;
         playerData[winner][mode].wins++;
@@ -603,44 +613,39 @@ function applyMatchElo(match) {
         playerData[loser][mode].losses++;
         playerData[loser][mode].history.push({ date: timestamp, change: loserChange, opponent: winner, result: 'loss' });
 
-        eloChanges = { [winner]: winnerChange, [loser]: loserChange };
-
         // Track Neo vs Brother (only when a Neo plays a Brother)
         neoBrotherUpdate = checkNeoBrotherMatch([winner], [loser]);
     } else {
         const [winner1, winner2] = match.winners;
         const [loser1, loser2] = match.losers;
-        const teamWinnerElo = (playerData[winner1][mode].elo + playerData[winner2][mode].elo) / 2;
-        const teamLoserElo = (playerData[loser1][mode].elo + playerData[loser2][mode].elo) / 2;
-        const { winnerChange, loserChange } = calculateEloChange(teamWinnerElo, teamLoserElo);
+        const winnerChange = eloChanges[winner1];
+        const loserChange = eloChanges[loser1];
 
         [winner1, winner2].forEach(player => {
-            playerData[player][mode].elo += winnerChange;
+            playerData[player][mode].elo += eloChanges[player];
             playerData[player][mode].wins++;
             playerData[player][mode].history.push({
-                date: timestamp, change: winnerChange,
+                date: timestamp, change: eloChanges[player],
                 teammate: player === winner1 ? winner2 : winner1,
                 opponents: [loser1, loser2], result: 'win'
             });
         });
 
         [loser1, loser2].forEach(player => {
-            playerData[player][mode].elo += loserChange;
+            playerData[player][mode].elo += eloChanges[player];
             playerData[player][mode].losses++;
             playerData[player][mode].history.push({
-                date: timestamp, change: loserChange,
+                date: timestamp, change: eloChanges[player],
                 teammate: player === loser1 ? loser2 : loser1,
                 opponents: [winner1, winner2], result: 'loss'
             });
         });
 
-        eloChanges = { [winner1]: winnerChange, [winner2]: winnerChange, [loser1]: loserChange, [loser2]: loserChange };
-
         // Track Neo vs Brother (only when Neos play Brothers)
         neoBrotherUpdate = checkNeoBrotherMatch([winner1, winner2], [loser1, loser2]);
     }
 
-    return { eloChanges, neoBrotherUpdate };
+    return { neoBrotherUpdate };
 }
 
 // Check if match is Neo vs Brother and return who won
@@ -682,8 +687,8 @@ function confirmMatch(matchId, pin) {
         return;
     }
 
-    // Apply ELO
-    const { eloChanges, neoBrotherUpdate } = applyMatchElo(match);
+    // Apply ELO (uses pre-calculated values from submission time)
+    const { neoBrotherUpdate } = applyMatchElo(match);
 
     // Update Neo vs Brother score if applicable
     if (neoBrotherUpdate === 'neo') {
@@ -700,7 +705,7 @@ function confirmMatch(matchId, pin) {
         timestamp: match.timestamp,
         winners: match.winners,
         losers: match.losers,
-        eloChanges,
+        eloChanges: match.eloChanges,
         neoBrotherResult: neoBrotherUpdate
     };
 
