@@ -516,7 +516,7 @@ function calculateEloChange(winnerElo, loserElo) {
 function submitMatch() {
     const mode = document.getElementById('game-mode').value;
     const timestamp = new Date().toISOString();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
     const matchId = String(Date.now());
 
     let matchData;
