@@ -52,8 +52,50 @@ const BROTHERS = [
     "Lynn Yi",
     "Cheeks",
     "Tom Huang",
-    "Rosemary Soule"
+    "Rosemary Soule",
+    "Sophie Y-lan Courtney",
+    "Omar Ben Kadour"
 ];
+
+// ETA year assignments (Brothers only)
+const ETA_YEARS = {
+    "Arda Enfiyeci": 22,
+    "Sophie Y-lan Courtney": 22,
+    "Omar Ben Kadour": 22,
+    "Jorge Luis Rodriguez": 23,
+    "Isabella Elena Barreira Bekanich": 23,
+    "Megha Narayanan Govindu": 23,
+    "Akeeliah Diajia Grey": 23,
+    "Agustina Hufschmid": 23,
+    "Eda Orakci": 23,
+    "Edgar Gustavo Rodriguez Moron": 23,
+    "Stefan Zaharia": 23,
+    "Amine Oueslati": 24,
+    "Pierce Haider": 24,
+    "Crosby Collins": 24,
+    "Evelyn Darling": 24,
+    "Federico Ramirez": 24,
+    "Ike Willis": 24,
+    "Jack Kramer": 24,
+    "Joelle Lewis-Taliaferro": 24,
+    "Kamelija Patoska": 24,
+    "Lucas Hudson": 24,
+    "Mokareoluwa Adewoye": 24,
+    "Moussa Dibassy": 24,
+    "Truth Woods": 24,
+    "Zachary Kirchhoff": 24,
+    "Juliana Li": 25,
+    "Jonathan Schwarz": 25,
+    "Drew Neiman": 25,
+    "Brittany Brown": 25,
+    "Achille Giaretta": 25,
+    "Sana Dezhabad": 25,
+    "Hannah Gong": 25,
+    "Lynn Yi": 25,
+    "Cheeks": 25,
+    "Tom Huang": 25,
+    "Rosemary Soule": 25
+};
 
 // Combined player list
 const PLAYERS = [...NEOS, ...BROTHERS].sort();
@@ -65,6 +107,10 @@ function isNeo(playerName) {
 
 function isBrother(playerName) {
     return BROTHERS.includes(playerName);
+}
+
+function getEtaYear(playerName) {
+    return ETA_YEARS[playerName] || null;
 }
 
 // Constants
@@ -85,6 +131,7 @@ let matchHistory = [];
 let pendingMatches = [];
 let playerPins = {};
 let neoBrotherScore = { neo: 0, brother: 0 };
+let etaWins = { 22: 0, 23: 0, 24: 0, 25: 0 };
 let firebaseReady = false;
 
 // Initialize app
@@ -205,6 +252,16 @@ function initializeFirebase() {
     }, (error) => {
         console.error('Firebase neoBrotherScore error:', error);
         neoBrotherScore = { neo: 0, brother: 0 };
+    });
+
+    // Listen for ETA wins
+    onValue(ref(database, 'etaWins'), (snapshot) => {
+        const data = snapshot.val();
+        etaWins = data || { 22: 0, 23: 0, 24: 0, 25: 0 };
+        updateEtaDisplay();
+    }, (error) => {
+        console.error('Firebase etaWins error:', error);
+        etaWins = { 22: 0, 23: 0, 24: 0, 25: 0 };
     });
 
     // Listen for pending matches
@@ -598,6 +655,7 @@ function applyMatchElo(match) {
     const timestamp = match.timestamp;
     const eloChanges = match.eloChanges;
     let neoBrotherUpdate = null;
+    const etaUpdates = [];
 
     if (match.type === '1v1') {
         const winner = match.winners[0];
@@ -615,11 +673,13 @@ function applyMatchElo(match) {
 
         // Track Neo vs Brother (only when a Neo plays a Brother)
         neoBrotherUpdate = checkNeoBrotherMatch([winner], [loser]);
+
+        // Track ETA wins (Brothers only)
+        const winnerEta = getEtaYear(winner);
+        if (winnerEta) etaUpdates.push(winnerEta);
     } else {
         const [winner1, winner2] = match.winners;
         const [loser1, loser2] = match.losers;
-        const winnerChange = eloChanges[winner1];
-        const loserChange = eloChanges[loser1];
 
         [winner1, winner2].forEach(player => {
             playerData[player][mode].elo += eloChanges[player];
@@ -643,9 +703,15 @@ function applyMatchElo(match) {
 
         // Track Neo vs Brother (only when Neos play Brothers)
         neoBrotherUpdate = checkNeoBrotherMatch([winner1, winner2], [loser1, loser2]);
+
+        // Track ETA wins (Brothers only)
+        [winner1, winner2].forEach(p => {
+            const eta = getEtaYear(p);
+            if (eta) etaUpdates.push(eta);
+        });
     }
 
-    return { neoBrotherUpdate };
+    return { neoBrotherUpdate, etaUpdates };
 }
 
 // Check if match is Neo vs Brother and return who won
@@ -672,6 +738,28 @@ function updateNeoBrotherDisplay() {
     }
 }
 
+function updateEtaDisplay() {
+    const container = document.getElementById('eta-scoreboard');
+    if (!container) return;
+
+    const years = [22, 23, 24, 25];
+    const maxWins = Math.max(...years.map(y => etaWins[y] || 0), 1);
+
+    container.innerHTML = years.map(year => {
+        const wins = etaWins[year] || 0;
+        const barWidth = maxWins > 0 ? (wins / maxWins * 100) : 0;
+        return `
+            <div class="eta-row">
+                <div class="eta-label">ETA '${year}</div>
+                <div class="eta-bar-container">
+                    <div class="eta-bar" style="width: ${barWidth}%"></div>
+                </div>
+                <div class="eta-count">${wins}</div>
+            </div>
+        `;
+    }).join('');
+}
+
 // Confirm a pending match (loser enters PIN)
 function confirmMatch(matchId, pin) {
     const match = pendingMatches.find(m => m.id === matchId);
@@ -688,7 +776,7 @@ function confirmMatch(matchId, pin) {
     }
 
     // Apply ELO (uses pre-calculated values from submission time)
-    const { neoBrotherUpdate } = applyMatchElo(match);
+    const { neoBrotherUpdate, etaUpdates } = applyMatchElo(match);
 
     // Update Neo vs Brother score if applicable
     if (neoBrotherUpdate === 'neo') {
@@ -696,6 +784,11 @@ function confirmMatch(matchId, pin) {
     } else if (neoBrotherUpdate === 'brother') {
         neoBrotherScore.brother++;
     }
+
+    // Update ETA wins
+    etaUpdates.forEach(year => {
+        etaWins[year] = (etaWins[year] || 0) + 1;
+    });
 
     // Create confirmed match record
     const confirmedMatch = {
@@ -720,6 +813,9 @@ function confirmMatch(matchId, pin) {
     ];
     if (neoBrotherUpdate) {
         savePromises.push(set(ref(database, 'neoBrotherScore'), neoBrotherScore));
+    }
+    if (etaUpdates.length > 0) {
+        savePromises.push(set(ref(database, 'etaWins'), etaWins));
     }
     Promise.all(savePromises).then(() => {
         showToast('Match confirmed! ELO updated.', 'success');
@@ -1132,6 +1228,12 @@ function updateHomeStats() {
 
     // Top players
     updateTopPlayers();
+
+    // ETA scoreboard
+    updateEtaDisplay();
+
+    // Neo vs Brother
+    updateNeoBrotherDisplay();
 }
 
 function updateRecentMatches() {
