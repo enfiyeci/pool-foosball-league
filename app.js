@@ -131,7 +131,6 @@ let matchHistory = [];
 let pendingMatches = [];
 let playerPins = {};
 let neoBrotherScore = { neo: 0, brother: 0 };
-let etaWins = { 22: 0, 23: 0, 24: 0, 25: 0 };
 let firebaseReady = false;
 
 // Initialize app
@@ -252,16 +251,6 @@ function initializeFirebase() {
     }, (error) => {
         console.error('Firebase neoBrotherScore error:', error);
         neoBrotherScore = { neo: 0, brother: 0 };
-    });
-
-    // Listen for ETA wins
-    onValue(ref(database, 'etaWins'), (snapshot) => {
-        const data = snapshot.val();
-        etaWins = data || { 22: 0, 23: 0, 24: 0, 25: 0 };
-        updateEtaDisplay();
-    }, (error) => {
-        console.error('Firebase etaWins error:', error);
-        etaWins = { 22: 0, 23: 0, 24: 0, 25: 0 };
     });
 
     // Listen for pending matches
@@ -655,7 +644,6 @@ function applyMatchElo(match) {
     const timestamp = match.timestamp;
     const eloChanges = match.eloChanges;
     let neoBrotherUpdate = null;
-    const etaUpdates = [];
 
     if (match.type === '1v1') {
         const winner = match.winners[0];
@@ -673,10 +661,6 @@ function applyMatchElo(match) {
 
         // Track Neo vs Brother (only when a Neo plays a Brother)
         neoBrotherUpdate = checkNeoBrotherMatch([winner], [loser]);
-
-        // Track ETA wins (Brothers only)
-        const winnerEta = getEtaYear(winner);
-        if (winnerEta) etaUpdates.push(winnerEta);
     } else {
         const [winner1, winner2] = match.winners;
         const [loser1, loser2] = match.losers;
@@ -703,15 +687,9 @@ function applyMatchElo(match) {
 
         // Track Neo vs Brother (only when Neos play Brothers)
         neoBrotherUpdate = checkNeoBrotherMatch([winner1, winner2], [loser1, loser2]);
-
-        // Track ETA wins (Brothers only)
-        [winner1, winner2].forEach(p => {
-            const eta = getEtaYear(p);
-            if (eta) etaUpdates.push(eta);
-        });
     }
 
-    return { neoBrotherUpdate, etaUpdates };
+    return { neoBrotherUpdate };
 }
 
 // Check if match is Neo vs Brother and return who won
@@ -738,9 +716,40 @@ function updateNeoBrotherDisplay() {
     }
 }
 
+// Check if a match counts as an ETA vs ETA match and return winning ETA year
+function getEtaMatchWinner(match) {
+    if (match.type === '1v1') {
+        const winnerEta = getEtaYear(match.winners[0]);
+        const loserEta = getEtaYear(match.losers[0]);
+        // Both must be brothers with ETA years, and different years
+        if (winnerEta && loserEta && winnerEta !== loserEta) {
+            return winnerEta;
+        }
+    } else if (match.type === '2v2') {
+        const winnerEtas = match.winners.map(p => getEtaYear(p));
+        const loserEtas = match.losers.map(p => getEtaYear(p));
+        // Both winners must be same ETA, both losers must be same ETA, and different from winners
+        if (winnerEtas[0] && winnerEtas[1] && winnerEtas[0] === winnerEtas[1] &&
+            loserEtas[0] && loserEtas[1] && loserEtas[0] === loserEtas[1] &&
+            winnerEtas[0] !== loserEtas[0]) {
+            return winnerEtas[0];
+        }
+    }
+    return null;
+}
+
 function updateEtaDisplay() {
     const container = document.getElementById('eta-scoreboard');
     if (!container) return;
+
+    // Compute ETA wins from match history
+    const etaWins = { 22: 0, 23: 0, 24: 0, 25: 0 };
+    matchHistory.forEach(match => {
+        const winningEta = getEtaMatchWinner(match);
+        if (winningEta) {
+            etaWins[winningEta] = (etaWins[winningEta] || 0) + 1;
+        }
+    });
 
     const years = [22, 23, 24, 25];
     const maxWins = Math.max(...years.map(y => etaWins[y] || 0), 1);
@@ -776,7 +785,7 @@ function confirmMatch(matchId, pin) {
     }
 
     // Apply ELO (uses pre-calculated values from submission time)
-    const { neoBrotherUpdate, etaUpdates } = applyMatchElo(match);
+    const { neoBrotherUpdate } = applyMatchElo(match);
 
     // Update Neo vs Brother score if applicable
     if (neoBrotherUpdate === 'neo') {
@@ -784,11 +793,6 @@ function confirmMatch(matchId, pin) {
     } else if (neoBrotherUpdate === 'brother') {
         neoBrotherScore.brother++;
     }
-
-    // Update ETA wins
-    etaUpdates.forEach(year => {
-        etaWins[year] = (etaWins[year] || 0) + 1;
-    });
 
     // Create confirmed match record
     const confirmedMatch = {
@@ -813,9 +817,6 @@ function confirmMatch(matchId, pin) {
     ];
     if (neoBrotherUpdate) {
         savePromises.push(set(ref(database, 'neoBrotherScore'), neoBrotherScore));
-    }
-    if (etaUpdates.length > 0) {
-        savePromises.push(set(ref(database, 'etaWins'), etaWins));
     }
     Promise.all(savePromises).then(() => {
         showToast('Match confirmed! ELO updated.', 'success');
